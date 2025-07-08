@@ -1,6 +1,27 @@
 import * as k8s from "@pulumi/kubernetes"
 import * as pulumi from "@pulumi/pulumi"
 
+// Common types
+type ChartValues = Record<string, any>
+
+// Simple deep merge utility
+function deepMerge(target: any, source: any): any {
+  if (!source) return target
+  if (!target) return source
+
+  const result = { ...target }
+
+  for (const key in source) {
+    if (source[key] && typeof source[key] === 'object' && !Array.isArray(source[key])) {
+      result[key] = deepMerge(target[key] || {}, source[key])
+    } else {
+      result[key] = source[key]
+    }
+  }
+
+  return result
+}
+
 export type Cluster= {
   name?: string
   endpoint: string,
@@ -40,6 +61,8 @@ type CsiDriverArgs = {
   provider: k8s.Provider
   resourceName?: string
   withSyncer?: boolean
+  chartValues?: ChartValues
+  pulumiOptions?: pulumi.ResourceOptions
 }
 
 
@@ -55,15 +78,16 @@ export const defineCsiDriver = (args: CsiDriverArgs) => {
     repositoryOpts: {
       repo: 'https://leaseweb.github.io/cloudstack-csi-driver',
     },
-    values: {
+    values: deepMerge({
+      nameOverride: `${resourceName}-csi`,
       syncer: {
         enabled: withSyncer,
       },
       node: {
         metadataSource: "cloud-init",
       },
-    }
-  }, { provider });
+    }, args.chartValues)
+  }, pulumi.mergeOptions({ provider }, args.pulumiOptions));
 
   const result = {
     name: `${resourceName}-csi-driver`,
@@ -86,10 +110,8 @@ export type CertManagerArgs = {
   acme: {
     email: string
   }
-  hostAliases?: {
-    ip: string
-    hostnames: string[]
-  }[]
+  chartValues?: ChartValues
+  pulumiOptions?: pulumi.ResourceOptions
 }
 
 export const defineCertManager = (args: CertManagerArgs) => {
@@ -101,7 +123,7 @@ export const defineCertManager = (args: CertManagerArgs) => {
     metadata: {
       name: namespace,
     },
-  }, { provider });
+  }, pulumi.mergeOptions({ provider }, args.pulumiOptions));
 
   const certManager = new k8s.helm.v4.Chart("cert-manager", {
     chart: "cert-manager",
@@ -110,13 +132,12 @@ export const defineCertManager = (args: CertManagerArgs) => {
     repositoryOpts: {
       repo: "https://charts.jetstack.io",
     },
-    values: {
+    values: deepMerge({
       crds: {
         enabled: true
       },
-      hostAliases: args.hostAliases,
-    }
-  }, { provider });
+    }, args.chartValues)
+  }, pulumi.mergeOptions({ provider }, args.pulumiOptions));
 
   const letsEncryptIssuer = new k8s.apiextensions.CustomResource("letsencrypt-prod", {
     apiVersion: "cert-manager.io/v1",
@@ -142,7 +163,7 @@ export const defineCertManager = (args: CertManagerArgs) => {
         ],
       },
     },
-  }, { provider, dependsOn: certManager });
+  }, pulumi.mergeOptions({ provider, dependsOn: certManager }, args.pulumiOptions));
 
   const result = {
     version,
@@ -166,6 +187,8 @@ export type IngressControllerArgs ={
   tcpProxy?: Record<string, string>
   additionalServices?: number
   replicas?: number
+  chartValues?: ChartValues
+  pulumiOptions?: pulumi.ResourceOptions
 }
 
 export const defineIngressController = (args: IngressControllerArgs) => {
@@ -178,7 +201,7 @@ export const defineIngressController = (args: IngressControllerArgs) => {
     metadata: {
       name: namespace,
     },
-  }, { provider });
+  }, pulumi.mergeOptions({ provider }, args.pulumiOptions));
 
   const nginx = new k8s.helm.v4.Chart("ingress-nginx", {
     chart: "ingress-nginx",
@@ -187,13 +210,13 @@ export const defineIngressController = (args: IngressControllerArgs) => {
     repositoryOpts: {
       repo: "https://kubernetes.github.io/ingress-nginx",
     },
-    values: {
+    values: deepMerge({
       tcp: args.tcpProxy,
       controller: {
         replicaCount: args.replicas || 1,
       }
-    },
-  }, { provider });
+    }, args.chartValues)
+  }, pulumi.mergeOptions({ provider }, args.pulumiOptions));
 
   // Create additional LoadBalancer services pointing to the same nginx controller pods
   const additionalServices = []
@@ -244,7 +267,7 @@ export const defineIngressController = (args: IngressControllerArgs) => {
         internalTrafficPolicy: "Cluster",
         ipFamilyPolicy: "SingleStack",
       },
-    }, { provider, dependsOn: nginx });
+    }, pulumi.mergeOptions({ provider, dependsOn: nginx }, args.pulumiOptions));
 
     additionalServices.push(extraService)
   }
@@ -266,6 +289,7 @@ export const defineIngressController = (args: IngressControllerArgs) => {
 
 export type MetricServerArgs = {
   provider: k8s.Provider
+  pulumiOptions?: pulumi.ResourceOptions
 }
 
 export const defineMetricsServer = (args: MetricServerArgs) => {
@@ -273,7 +297,7 @@ export const defineMetricsServer = (args: MetricServerArgs) => {
 
   const operator = new k8s.yaml.v2.ConfigFile("metrics-server", {
     file: 'https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml',
-  }, {
+  }, pulumi.mergeOptions({
     provider,
     transforms: [
       (args) => {
@@ -297,7 +321,7 @@ export const defineMetricsServer = (args: MetricServerArgs) => {
         }
       }
     ]
-  });
+  }, args.pulumiOptions));
 
   const result = {}
 
@@ -312,6 +336,7 @@ export const defineMetricsServer = (args: MetricServerArgs) => {
 
 export type CloudNativePgArgs = {
   provider: k8s.Provider
+  pulumiOptions?: pulumi.ResourceOptions
 }
 
 export const defineCloudNativePG = (args: CloudNativePgArgs) => {
@@ -319,7 +344,7 @@ export const defineCloudNativePG = (args: CloudNativePgArgs) => {
 
   const operator = new k8s.yaml.v2.ConfigFile("cloudnative-pg", {
     file: 'https://github.com/cloudnative-pg/cloudnative-pg/releases/download/v1.25.1/cnpg-1.25.1.yaml',
-  }, { provider });
+  }, pulumi.mergeOptions({ provider }, args.pulumiOptions));
 
   const result = {}
 
@@ -336,6 +361,8 @@ export type EcrSecretsOperatorArgs = {
   provider: k8s.Provider,
   namespace?: string
   version?: string
+  chartValues?: ChartValues
+  pulumiOptions?: pulumi.ResourceOptions
 }
 
 export const defineEcrSecretsOperator = (args: EcrSecretsOperatorArgs) => {
@@ -347,7 +374,7 @@ export const defineEcrSecretsOperator = (args: EcrSecretsOperatorArgs) => {
     metadata: {
       name: namespace,
     },
-  }, { provider });
+  }, pulumi.mergeOptions({ provider }, args.pulumiOptions));
 
   const ecrChart = new k8s.helm.v4.Chart("ecr-secrets-operator-system", {
     chart: "kube-ecr-secrets-operator",
@@ -356,8 +383,8 @@ export const defineEcrSecretsOperator = (args: EcrSecretsOperatorArgs) => {
     repositoryOpts: {
       repo: "https://zak905.github.io/kube-ecr-secrets-operator/repo-helm",
     },
-    values: {},
-  }, { provider });
+    values: deepMerge({}, args.chartValues)
+  }, pulumi.mergeOptions({ provider }, args.pulumiOptions));
 
   const result = {
     version,
