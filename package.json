@@ -1,0 +1,27 @@
+{
+  "name": "platoform-pulumi",
+  "version": "1.0.0",
+  "description": "Set of pulumi helper functions for Platoform Cloud",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/plato-cloud/platoform-pulumi.git"
+  },
+  "keywords": [
+    "pulumi",
+    "platoform",
+    "kubernetes",
+    "ingress",
+    "certbot",
+    "app"
+  ],
+  "author": "Sergiy Kukunin <sergey.kukunin@gmail.com>",
+  "license": "GPL-3.0",
+  "bugs": {
+    "url": "https://github.com/plato-cloud/platoform-pulumi/issues"
+  },
+  "homepage": "https://github.com/plato-cloud/platoform-pulumi#readme"
+}
