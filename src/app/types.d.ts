@@ -37,6 +37,7 @@ export type FactoryContext = {
 }
 
 export type ServiceArgs = {
+  applicationName: string
   namespace: string
   cluster: Cluster
   context: FactoryContext

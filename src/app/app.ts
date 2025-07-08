@@ -19,7 +19,12 @@ export default (app: Application, cluster: Cluster, factoryConfig: FactoryContex
   const defineServices = (): [any, Environment] => {
     const services = Object.fromEntries(
       Object.entries(app.services || {}).map(([name, service]) => {
-        return [name, service({ namespace, cluster, context: factoryConfig })]
+        return [name, service({
+          applicationName: app.name,
+          namespace,
+          cluster,
+          context: factoryConfig
+        })]
       })
     )
 

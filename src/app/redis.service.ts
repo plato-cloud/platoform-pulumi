@@ -1,7 +1,7 @@
 import * as pulumi from "@pulumi/pulumi"
 import * as k8s from "@pulumi/kubernetes"
 import * as random from "@pulumi/random"
-import type { ServiceArgs, FactoryContext } from './types'
+import type { ServiceArgs } from './types'
 import { deepMerge } from '../utils'
 
 type RedisService = {
@@ -9,16 +9,15 @@ type RedisService = {
 }
 
 type RedisArgs = {
-  release?: string,
+  name?: string,
   version?: string,
   chartValues?: any,
+  pulumiOptions?: pulumi.ResourceOptions
 }
 
-export default (args: RedisArgs = {}) => ({ namespace, cluster, context }: ServiceArgs): RedisService => {
-  const name = [args.release, namespace, 'redis'].filter(Boolean).join('-')
-  const password = new random.RandomPassword(`${namespace}-password`, { length: 20 });
-
-  const storageClass = context.getStorageClass(cluster, 'fast')
+export default (args: RedisArgs = {}) => ({ applicationName, namespace, cluster, context }: ServiceArgs): RedisService => {
+  const name = [args.name || applicationName, 'redis'].filter(Boolean).join('-')
+  const password = new random.RandomPassword(`${name}-password`, { length: 20 });
 
   new k8s.helm.v3.Chart(name, {
     chart: 'redis',
@@ -35,16 +34,16 @@ export default (args: RedisArgs = {}) => ({ namespace, cluster, context }: Servi
       master: {
         persistence: {
           size: '20Gi',
-          storageClass: storageClass
         }
       },
       global: {
+        storageClass: context.getStorageClass(cluster, 'fast'),
         redis: {
           password: password.result,
         },
       },
     }, args.chartValues || {}),
-  }, { provider: cluster.provider });
+  }, pulumi.mergeOptions({ provider: cluster.provider }, args.pulumiOptions))
 
   return {
     url: pulumi
