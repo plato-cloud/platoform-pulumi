@@ -31,7 +31,7 @@ export type FactoryContext = {
   getStorageClass: (cluster: Cluster, type: 'fast' | 'cheap') => string
   exposeService?: (cluster: Cluster, deployment: ExposedServiceArgs) => ExposedServiceResult
   cicd?: {
-    getDeployServiceAccount: (cluster: Cluster) => pulumi.Output<{ name: string; namespace: string }> | null
+    getDeployServiceAccount: (cluster: Cluster) => pulumi.Input<{ name: string; namespace: string } | null>
   }
   services?: Record<string, Function>
 }
