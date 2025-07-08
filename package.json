@@ -1,10 +1,35 @@
 {
-  "name": "platoform-pulumi",
-  "version": "1.0.0",
+  "name": "@platoform/pulumi-helper",
+  "version": "0.0.1",
   "description": "Set of pulumi helper functions for Platoform Cloud",
-  "main": "index.js",
+  "main": "dist/index.js",
+  "module": "dist/index.mjs",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "prepublishOnly": "npm run build"
+  },
+  "devDependencies": {
+    "@pulumi/kubernetes": "^4.23.0",
+    "@pulumi/pulumi": "^3.181.0",
+    "tsup": "^8.0.0",
+    "typescript": "^5.0.0"
+  },
+  "peerDependencies": {
+    "@pulumi/kubernetes": ">=4.0.0",
+    "@pulumi/pulumi": ">=3.0.0"
   },
   "repository": {
     "type": "git",
