@@ -1,26 +1,9 @@
 import * as k8s from "@pulumi/kubernetes"
 import * as pulumi from "@pulumi/pulumi"
+import { deepMerge } from './utils'
 
 // Common types
 type ChartValues = Record<string, any>
-
-// Simple deep merge utility
-function deepMerge(target: any, source: any): any {
-  if (!source) return target
-  if (!target) return source
-
-  const result = { ...target }
-
-  for (const key in source) {
-    if (source[key] && typeof source[key] === 'object' && !Array.isArray(source[key])) {
-      result[key] = deepMerge(target[key] || {}, source[key])
-    } else {
-      result[key] = source[key]
-    }
-  }
-
-  return result
-}
 
 export type Cluster= {
   name?: string

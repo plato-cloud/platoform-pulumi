@@ -1,6 +1,6 @@
 {
   "name": "@platoform/pulumi-helper",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "description": "Set of pulumi helper functions for Platoform Cloud",
   "main": "dist/index.js",
   "module": "dist/index.mjs",
@@ -24,12 +24,14 @@
   "devDependencies": {
     "@pulumi/kubernetes": "^4.23.0",
     "@pulumi/pulumi": "^3.181.0",
+    "@pulumi/random": "^4.16.0",
     "tsup": "^8.0.0",
     "typescript": "^5.0.0"
   },
   "peerDependencies": {
     "@pulumi/kubernetes": ">=4.0.0",
-    "@pulumi/pulumi": ">=3.0.0"
+    "@pulumi/pulumi": ">=3.0.0",
+    "@pulumi/random": ">=4.0.0"
   },
   "repository": {
     "type": "git",
