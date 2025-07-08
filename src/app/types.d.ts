@@ -10,6 +10,7 @@ export type DeploymentScaler = {
 export type Cluster = {
   platform: string;  // Defined by client, could be 'platoform', 'google', 'aws', etc.
   provider: kubernetes.Provider;
+  stackReference?: pulumi.StackReference;
 }
 
 export type ExposedServiceArgs = DeploymentConfig & {
