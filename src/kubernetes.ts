@@ -147,12 +147,15 @@ export type IngressControllerArgs ={
   version?: string
   namespace?: string
   tcpProxy?: Record<string, string>
+  additionalServices?: number
+  replicas?: number
 }
 
 export const defineIngressController = (args: IngressControllerArgs) => {
   const version = args.version || '4.12.2'
   const namespace = args.namespace || 'ingress-nginx'
   const provider = args.provider
+  const controllerName = "ingress-nginx"
 
   const ns = new k8s.core.v1.Namespace("ingress-nginx-namespace", {
     metadata: {
@@ -160,7 +163,7 @@ export const defineIngressController = (args: IngressControllerArgs) => {
     },
   }, { provider });
 
-  new k8s.helm.v3.Chart("ingress-nginx", {
+  const nginx = new k8s.helm.v3.Chart("ingress-nginx", {
     chart: "ingress-nginx",
     version,
     namespace: ns.metadata.name,
@@ -168,13 +171,71 @@ export const defineIngressController = (args: IngressControllerArgs) => {
       repo: "https://kubernetes.github.io/ingress-nginx",
     },
     values: {
-      tcp: args.tcpProxy
+      tcp: args.tcpProxy,
+      controller: {
+        replicaCount: args.replicas || 1,
+      }
     },
   }, { provider });
+
+  // Create additional LoadBalancer services pointing to the same nginx controller pods
+  const additionalServices = []
+  for (let i = 1; i <= (args.additionalServices || 0); i++) {
+    const tcpPorts = Object.keys(args.tcpProxy || {}).map(port => ({
+      name: `${port}-tcp`,
+      port: parseInt(port),
+      targetPort: `${port}-tcp`,
+      protocol: "TCP" as const
+    }))
+
+    const extraService = new k8s.core.v1.Service(`ingress-nginx-controller-${i + 1}`, {
+      metadata: {
+        name: `${controllerName}-controller-${i + 1}`,
+        namespace: ns.metadata.name,
+        labels: {
+          "app.kubernetes.io/component": "controller",
+          "app.kubernetes.io/instance": controllerName,
+          "app.kubernetes.io/name": "ingress-nginx",
+          "app.kubernetes.io/part-of": "ingress-nginx",
+        },
+      },
+      spec: {
+        type: "LoadBalancer",
+        selector: {
+          "app.kubernetes.io/component": "controller",
+          "app.kubernetes.io/instance": controllerName,
+          "app.kubernetes.io/name": "ingress-nginx",
+        },
+        ports: [
+          {
+            name: "http",
+            port: 80,
+            targetPort: "http",
+            protocol: "TCP",
+            appProtocol: "http"
+          },
+          {
+            name: "https",
+            port: 443,
+            targetPort: "https",
+            protocol: "TCP",
+            appProtocol: "https"
+          },
+          ...tcpPorts
+        ],
+        externalTrafficPolicy: "Cluster",
+        internalTrafficPolicy: "Cluster",
+        ipFamilyPolicy: "SingleStack",
+      },
+    }, { provider, dependsOn: nginx });
+
+    additionalServices.push(extraService)
+  }
 
   return {
     version,
     namespace: ns.metadata.name,
+    additionalServices: additionalServices.length,
   }
 }
 
