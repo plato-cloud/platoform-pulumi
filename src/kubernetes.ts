@@ -1,4 +1,5 @@
 import * as k8s from "@pulumi/kubernetes"
+import * as pulumi from "@pulumi/pulumi"
 
 export type Cluster= {
   name?: string
@@ -47,11 +48,11 @@ export const defineCsiDriver = (args: CsiDriverArgs) => {
   const withSyncer = 'withSyncer' in args ? args.withSyncer : true
   const provider = args.provider
 
-  const csiDriver = new k8s.helm.v3.Chart(`${resourceName}-csi-driver`, {
+  const csiDriver = new k8s.helm.v4.Chart(`${resourceName}-csi-driver`, {
     chart: 'cloudstack-csi',
     version: '2.3.0',
     namespace: 'kube-system',
-    fetchOpts: {
+    repositoryOpts: {
       repo: 'https://leaseweb.github.io/cloudstack-csi-driver',
     },
     values: {
@@ -64,10 +65,18 @@ export const defineCsiDriver = (args: CsiDriverArgs) => {
     }
   }, { provider });
 
-  return {
+  const result = {
     name: `${resourceName}-csi-driver`,
     namespace: 'kube-system',
   }
+
+  Object.defineProperty(result, 'chart', {
+    get: () => csiDriver,
+    enumerable: false,
+    configurable: true
+  })
+
+  return result
 }
 
 export type CertManagerArgs = {
@@ -86,7 +95,7 @@ export type CertManagerArgs = {
 export const defineCertManager = (args: CertManagerArgs) => {
   const provider = args.provider
   const namespace = args.namespace || 'cert-manager'
-  const version = args.version || 'v1.17.2'
+  const version = args.version || 'v1.18.2'
 
   const ns = new k8s.core.v1.Namespace("cert-manager-namespace", {
     metadata: {
@@ -94,11 +103,11 @@ export const defineCertManager = (args: CertManagerArgs) => {
     },
   }, { provider });
 
-  const certManager = new k8s.helm.v3.Chart("cert-manager", {
+  const certManager = new k8s.helm.v4.Chart("cert-manager", {
     chart: "cert-manager",
     version,
     namespace: ns.metadata.name,
-    fetchOpts: {
+    repositoryOpts: {
       repo: "https://charts.jetstack.io",
     },
     values: {
@@ -135,11 +144,19 @@ export const defineCertManager = (args: CertManagerArgs) => {
     },
   }, { provider, dependsOn: certManager });
 
-  return {
+  const result = {
     version,
     namespace: ns.metadata.name,
     issuer: letsEncryptIssuer.metadata.name,
   }
+
+  Object.defineProperty(result, 'chart', {
+    get: () => certManager,
+    enumerable: false,
+    configurable: true
+  })
+
+  return result
 }
 
 export type IngressControllerArgs ={
@@ -163,11 +180,11 @@ export const defineIngressController = (args: IngressControllerArgs) => {
     },
   }, { provider });
 
-  const nginx = new k8s.helm.v3.Chart("ingress-nginx", {
+  const nginx = new k8s.helm.v4.Chart("ingress-nginx", {
     chart: "ingress-nginx",
     version,
     namespace: ns.metadata.name,
-    fetchOpts: {
+    repositoryOpts: {
       repo: "https://kubernetes.github.io/ingress-nginx",
     },
     values: {
@@ -232,11 +249,19 @@ export const defineIngressController = (args: IngressControllerArgs) => {
     additionalServices.push(extraService)
   }
 
-  return {
+  const result = {
     version,
     namespace: ns.metadata.name,
     additionalServices: additionalServices.length,
   }
+
+  Object.defineProperty(result, 'chart', {
+    get: () => nginx,
+    enumerable: false,
+    configurable: true
+  })
+
+  return result
 }
 
 export type MetricServerArgs = {
@@ -246,24 +271,43 @@ export type MetricServerArgs = {
 export const defineMetricsServer = (args: MetricServerArgs) => {
   const { provider } = args
 
-  const operator = new k8s.yaml.ConfigFile("metrics-server", {
+  const operator = new k8s.yaml.v2.ConfigFile("metrics-server", {
     file: 'https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml',
-    transformations: [
-      (obj: any) => {
-        if (obj.kind === "Deployment" && obj.metadata?.name === "metrics-server") {
-          const container = obj.spec?.template?.spec?.containers?.[0]
-          if (container && container.name === "metrics-server") {
-            container.args = container.args || []
-            if (!container.args.includes("--kubelet-insecure-tls")) {
-              container.args.push("--kubelet-insecure-tls")
+  }, {
+    provider,
+    transforms: [
+      (args) => {
+        // Apply provider to all child resources
+        let props = args.props
+
+        // Add kubelet-insecure-tls flag to metrics-server deployment
+        if (args.type === "kubernetes:apps/v1:Deployment" && args.name === "metrics-server:kube-system/metrics-server") {
+          const containers = props.spec?.template?.spec?.containers
+          if (containers && containers[0]?.name === "metrics-server") {
+            containers[0].args = containers[0].args || []
+            if (!containers[0].args.includes("--kubelet-insecure-tls")) {
+              containers[0].args.push("--kubelet-insecure-tls")
             }
           }
         }
+
+        return {
+          props,
+          opts: pulumi.mergeOptions(args.opts, { provider })
+        }
       }
     ]
-  }, { provider });
+  });
 
-  return {}
+  const result = {}
+
+  Object.defineProperty(result, 'configFile', {
+    get: () => operator,
+    enumerable: false,
+    configurable: true
+  })
+
+  return result
 }
 
 export type CloudNativePgArgs = {
@@ -273,11 +317,19 @@ export type CloudNativePgArgs = {
 export const defineCloudNativePG = (args: CloudNativePgArgs) => {
   const { provider } = args
 
-  const operator = new k8s.yaml.ConfigFile("cloudnative-pg", {
+  const operator = new k8s.yaml.v2.ConfigFile("cloudnative-pg", {
     file: 'https://github.com/cloudnative-pg/cloudnative-pg/releases/download/v1.25.1/cnpg-1.25.1.yaml',
   }, { provider });
 
-  return {}
+  const result = {}
+
+  Object.defineProperty(result, 'configFile', {
+    get: () => operator,
+    enumerable: false,
+    configurable: true
+  })
+
+  return result
 }
 
 export type EcrSecretsOperatorArgs = {
@@ -297,18 +349,26 @@ export const defineEcrSecretsOperator = (args: EcrSecretsOperatorArgs) => {
     },
   }, { provider });
 
-  new k8s.helm.v3.Chart("ecr-secrets-operator-system", {
+  const ecrChart = new k8s.helm.v4.Chart("ecr-secrets-operator-system", {
     chart: "kube-ecr-secrets-operator",
     version,
     namespace: ns.metadata.name,
-    fetchOpts: {
+    repositoryOpts: {
       repo: "https://zak905.github.io/kube-ecr-secrets-operator/repo-helm",
     },
     values: {},
   }, { provider });
 
-  return {
+  const result = {
     version,
     namespace: ns.metadata.name,
   }
+
+  Object.defineProperty(result, 'chart', {
+    get: () => ecrChart,
+    enumerable: false,
+    configurable: true
+  })
+
+  return result
 }
