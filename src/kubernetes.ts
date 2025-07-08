@@ -187,6 +187,19 @@ export const defineMetricsServer = (args: MetricServerArgs) => {
 
   const operator = new k8s.yaml.ConfigFile("metrics-server", {
     file: 'https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml',
+    transformations: [
+      (obj: any) => {
+        if (obj.kind === "Deployment" && obj.metadata?.name === "metrics-server") {
+          const container = obj.spec?.template?.spec?.containers?.[0]
+          if (container && container.name === "metrics-server") {
+            container.args = container.args || []
+            if (!container.args.includes("--kubelet-insecure-tls")) {
+              container.args.push("--kubelet-insecure-tls")
+            }
+          }
+        }
+      }
+    ]
   }, { provider });
 
   return {}
