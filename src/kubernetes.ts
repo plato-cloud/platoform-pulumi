@@ -116,6 +116,13 @@ export const defineCertManager = (args: CertManagerArgs) => {
       repo: "https://charts.jetstack.io",
     },
     values: deepMerge({
+      config: {
+        featureGates: {
+          // Disable the use of Exact PathType in Ingress resources, to work around a bug in ingress-nginx
+          // https://github.com/kubernetes/ingress-nginx/issues/11176
+          ACMEHTTP01IngressPathTypeExact: false
+        },
+      },
       crds: {
         enabled: true
       },
@@ -139,7 +146,7 @@ export const defineCertManager = (args: CertManagerArgs) => {
           {
             http01: {
               ingress: {
-                class: "nginx",
+                ingressClassName: "nginx"
               },
             },
           },
@@ -175,7 +182,7 @@ export type IngressControllerArgs ={
 }
 
 export const defineIngressController = (args: IngressControllerArgs) => {
-  const version = args.version || '4.12.2'
+  const version = args.version || '4.13.0'
   const namespace = args.namespace || 'ingress-nginx'
   const provider = args.provider
   const controllerName = "ingress-nginx"
