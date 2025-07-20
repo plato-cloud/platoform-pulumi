@@ -26,6 +26,11 @@ export const defineCICD = (app: Application, namespace: string, cluster: Cluster
       {
         apiGroups: [""],
         resources: ["pods"],
+        verbs: ["get", "list", "watch"],
+      },
+      {
+        apiGroups: [""],
+        resources: ["pods/log"],
         verbs: ["get", "list"],
       },
       {
