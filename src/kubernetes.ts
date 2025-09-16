@@ -326,17 +326,21 @@ export const defineMetricsServer = (args: MetricServerArgs) => {
 
 export type CloudNativePgArgs = {
   provider: k8s.Provider
+  version?: string
   pulumiOptions?: pulumi.ResourceOptions
 }
 
 export const defineCloudNativePG = (args: CloudNativePgArgs) => {
   const { provider } = args
+  const version = args.version || '1.27.0'
 
   const operator = new k8s.yaml.v2.ConfigFile("cloudnative-pg", {
-    file: 'https://github.com/cloudnative-pg/cloudnative-pg/releases/download/v1.25.1/cnpg-1.25.1.yaml',
+    file: `https://github.com/cloudnative-pg/cloudnative-pg/releases/download/v${version}/cnpg-${version}.yaml`,
   }, pulumi.mergeOptions({ provider }, args.pulumiOptions));
 
-  const result = {}
+  const result = {
+    version
+  }
 
   Object.defineProperty(result, 'configFile', {
     get: () => operator,
