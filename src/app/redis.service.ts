@@ -11,7 +11,7 @@ type RedisService = {
 type RedisArgs = {
   name?: string,
   version?: string,
-  repo?: string,
+  chart?: string,
   chartValues?: any,
   pulumiOptions?: pulumi.ResourceOptions
 }
@@ -21,12 +21,9 @@ export default (args: RedisArgs = {}) => ({ applicationName, namespace, cluster,
   const password = new random.RandomPassword(`${name}-password`, { length: 20 });
 
   new k8s.helm.v3.Chart(name, {
-    chart: 'redis',
-    version: args.version || '18.4.0',
+    chart: args.chart || "oci://registry-1.docker.io/bitnamicharts/redis",
+    version: args.version || '24.1.0',
     namespace,
-    fetchOpts: {
-      repo: args.repo || "oci://registry-1.docker.io/bitnamicharts/redis",
-    },
     values: deepMerge({
       architecture: 'standalone',
       cluster: {
