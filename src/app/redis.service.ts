@@ -11,6 +11,7 @@ type RedisService = {
 type RedisArgs = {
   name?: string,
   version?: string,
+  repo?: string,
   chartValues?: any,
   pulumiOptions?: pulumi.ResourceOptions
 }
@@ -24,7 +25,7 @@ export default (args: RedisArgs = {}) => ({ applicationName, namespace, cluster,
     version: args.version || '18.4.0',
     namespace,
     fetchOpts: {
-      repo: "https://charts.bitnami.com/bitnami",
+      repo: args.repo || "oci://registry-1.docker.io/bitnamicharts/redis",
     },
     values: deepMerge({
       architecture: 'standalone',
