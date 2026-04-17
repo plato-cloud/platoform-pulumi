@@ -53,7 +53,7 @@ type CsiDriverArgs = {
 }
 
 const CSI_DEFAULTS = {
-  chart: 'https://github.com/leaseweb/cloudstack-csi-driver/releases/download/cloudstack-csi-2.6.1/cloudstack-csi-2.6.1.tgz',
+  chart: 'https://github.com/cloudstack/cloudstack-csi-driver/releases/download/cloudstack-csi-3.0.1/cloudstack-csi-3.0.1.tgz',
 } as const
 
 export const defineCsiDriver = (args: CsiDriverArgs) => {
@@ -86,6 +86,33 @@ export const defineCsiDriver = (args: CsiDriverArgs) => {
       pulumiOptions: args.pulumiOptions,
       ...snapshotConfig,
     })
+
+    new k8s.apps.v1.DeploymentPatch(`${resourceName}-csi-snapshotter-sidecar`, {
+      metadata: {
+        name: `${resourceName}-csi-controller`,
+        namespace: 'kube-system',
+      },
+      spec: {
+        template: {
+          spec: {
+            containers: [{
+              name: 'csi-snapshotter',
+              image: 'registry.k8s.io/sig-storage/csi-snapshotter:v8.2.1',
+              args: [
+                '--v=2',
+                '--csi-address=/var/lib/csi/sockets/pluginproxy/csi.sock',
+                '--leader-election',
+                '--leader-election-namespace=kube-system',
+              ],
+              volumeMounts: [{
+                name: 'socket-dir',
+                mountPath: '/var/lib/csi/sockets/pluginproxy/',
+              }],
+            }],
+          },
+        },
+      },
+    }, { provider, dependsOn: [csiDriver] })
 
     new k8s.apiextensions.CustomResource(`${resourceName}-volume-snapshot-class`, {
       apiVersion: 'snapshot.storage.k8s.io/v1',
