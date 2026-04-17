@@ -44,23 +44,29 @@ type CsiDriverArgs = {
   provider: k8s.Provider
   resourceName?: string
   withSyncer?: boolean
+  chart?: string
+  version?: string
+  repo?: string
   chartValues?: ChartValues
   pulumiOptions?: pulumi.ResourceOptions
+  snapshotController?: Omit<SnapshotControllerArgs, 'provider' | 'pulumiOptions'> & { enabled?: boolean }
 }
 
+const CSI_DEFAULTS = {
+  chart: 'https://github.com/leaseweb/cloudstack-csi-driver/releases/download/cloudstack-csi-2.6.1/cloudstack-csi-2.6.1.tgz',
+} as const
 
 export const defineCsiDriver = (args: CsiDriverArgs) => {
   const resourceName = args.resourceName || 'platoform'
   const withSyncer = 'withSyncer' in args ? args.withSyncer : true
   const provider = args.provider
 
+  const chart = args.chart || CSI_DEFAULTS.chart
   const csiDriver = new k8s.helm.v4.Chart(`${resourceName}-csi-driver`, {
-    chart: 'cloudstack-csi',
-    version: '2.3.0',
+    chart,
     namespace: 'kube-system',
-    repositoryOpts: {
-      repo: 'https://leaseweb.github.io/cloudstack-csi-driver',
-    },
+    ...(args.version ? { version: args.version } : {}),
+    ...(args.repo ? { repositoryOpts: { repo: args.repo } } : {}),
     values: deepMerge({
       nameOverride: `${resourceName}-csi`,
       syncer: {
@@ -71,6 +77,26 @@ export const defineCsiDriver = (args: CsiDriverArgs) => {
       },
     }, args.chartValues)
   }, pulumi.mergeOptions({ provider }, args.pulumiOptions));
+
+  const snapshotConfig = args.snapshotController
+  if (snapshotConfig?.enabled !== false) {
+    const snapshotController = defineSnapshotController({
+      provider,
+      resourceName,
+      pulumiOptions: args.pulumiOptions,
+      ...snapshotConfig,
+    })
+
+    new k8s.apiextensions.CustomResource(`${resourceName}-volume-snapshot-class`, {
+      apiVersion: 'snapshot.storage.k8s.io/v1',
+      kind: 'VolumeSnapshotClass',
+      metadata: {
+        name: 'cloudstack-snapshots',
+      },
+      driver: 'csi.cloudstack.apache.org',
+      deletionPolicy: 'Delete',
+    }, { provider, dependsOn: [snapshotController] })
+  }
 
   const result = {
     name: `${resourceName}-csi-driver`,
@@ -84,6 +110,39 @@ export const defineCsiDriver = (args: CsiDriverArgs) => {
   })
 
   return result
+}
+
+type SnapshotControllerArgs = {
+  provider: k8s.Provider
+  resourceName?: string
+  chart?: string
+  version?: string
+  repo?: string
+  chartValues?: ChartValues
+  pulumiOptions?: pulumi.ResourceOptions
+}
+
+const SNAPSHOT_DEFAULTS = {
+  chart: 'snapshot-controller',
+  version: '5.0.3',
+  repo: 'https://piraeus.io/helm-charts/',
+} as const
+
+export const defineSnapshotController = (args: SnapshotControllerArgs) => {
+  const resourceName = args.resourceName || 'platoform'
+  const provider = args.provider
+
+  return new k8s.helm.v4.Chart(`${resourceName}-snapshot-controller`, {
+    chart: args.chart || SNAPSHOT_DEFAULTS.chart,
+    version: args.version || SNAPSHOT_DEFAULTS.version,
+    namespace: 'kube-system',
+    ...(args.repo || SNAPSHOT_DEFAULTS.repo
+      ? { repositoryOpts: { repo: args.repo || SNAPSHOT_DEFAULTS.repo } }
+      : {}),
+    values: deepMerge({
+      installCRDs: true,
+    }, args.chartValues)
+  }, pulumi.mergeOptions({ provider }, args.pulumiOptions));
 }
 
 export type CertManagerArgs = {
